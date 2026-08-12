@@ -1,22 +1,43 @@
+// backend/controllers/healthController.js
 const HealthPlan = require('../models/HealthPlan');
 const DailyTracker = require('../models/DailyTracker');
 const User = require('../models/User');
 const aiService = require('../services/aiService');
+const mongoose = require('mongoose');
+
+// req.userId comes from the auth middleware (decoded JWT).
+// Without this check any logged-in user could pass another
+// user's :userId in the URL and read/edit their health data.
+const isOwner = (req, res) => {
+  if (req.params.userId !== req.userId) {
+    res.status(403).json({ success: false, message: 'Not authorized' });
+    return false;
+  }
+  return true;
+};
 
 exports.generateHealthPlan = async (req, res) => {
   try {
     const { userId } = req.params;
-    
-    // Get user data
+    if (!isOwner(req, res)) return;
+
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
 
-    // Generate plan using AI
     const planData = await aiService.generateHealthPlan(user);
 
-    // Create health plan
+    // Retire any previously active plan so getHealthPlan doesn't
+    // have to rely on sort order alone to find the current one.
+    await HealthPlan.updateMany(
+      { userId: user._id, active: true },
+      { $set: { active: false } }
+    );
+
     const healthPlan = new HealthPlan({
       userId: user._id,
       conditionsHandled: user.medicalConditions,
@@ -24,56 +45,78 @@ exports.generateHealthPlan = async (req, res) => {
     });
     await healthPlan.save();
 
-    // Create daily tracker for today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const dailyTracker = new DailyTracker({
-      userId: user._id,
-      date: today,
-      tasks: planData.dailyTasks.map(task => ({
-        taskId: new mongoose.Types.ObjectId(),
-        ...task
-      })),
-      totalTasks: planData.dailyTasks.length
-    });
-    await dailyTracker.save();
+    const newTasks = planData.dailyTasks.map(task => ({
+      taskId: new mongoose.Types.ObjectId(),
+      ...task
+    }));
+
+    // date+userId is a unique index — regenerating a plan on a day
+    // that already has a tracker would otherwise throw E11000.
+    const dailyTracker = await DailyTracker.findOneAndUpdate(
+      { userId: user._id, date: today },
+      {
+        $set: {
+          tasks: newTasks,
+          totalTasks: newTasks.length,
+          completedTasks: 0
+        }
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
 
     res.status(201).json({
+      success: true,
       message: 'Health plan generated successfully',
       healthPlan,
       dailyTracker
     });
   } catch (error) {
     console.error('Generate health plan error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
 exports.getHealthPlan = async (req, res) => {
   try {
     const { userId } = req.params;
-    
+    if (!isOwner(req, res)) return;
+
     const healthPlan = await HealthPlan.findOne({ 
       userId, 
       active: true 
     }).sort({ createdAt: -1 });
 
     if (!healthPlan) {
-      return res.status(404).json({ message: 'No active health plan found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'No active health plan found' 
+      });
     }
 
-    res.json(healthPlan);
+    res.json({
+      success: true,
+      healthPlan
+    });
   } catch (error) {
     console.error('Get health plan error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
 exports.getTodayTracker = async (req, res) => {
   try {
     const { userId } = req.params;
-    
+    if (!isOwner(req, res)) return;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -83,7 +126,6 @@ exports.getTodayTracker = async (req, res) => {
     });
 
     if (!tracker) {
-      // Create empty tracker for today if it doesn't exist
       tracker = new DailyTracker({
         userId,
         date: today,
@@ -93,16 +135,23 @@ exports.getTodayTracker = async (req, res) => {
       await tracker.save();
     }
 
-    res.json(tracker);
+    res.json({
+      success: true,
+      tracker
+    });
   } catch (error) {
     console.error('Get today tracker error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
 exports.updateTaskStatus = async (req, res) => {
   try {
     const { userId, taskId } = req.params;
+    if (!isOwner(req, res)) return;
     const { isCompleted, notes } = req.body;
 
     const today = new Date();
@@ -114,7 +163,10 @@ exports.updateTaskStatus = async (req, res) => {
     });
 
     if (!tracker) {
-      return res.status(404).json({ message: 'Tracker not found for today' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Tracker not found for today' 
+      });
     }
 
     const taskIndex = tracker.tasks.findIndex(t => 
@@ -122,7 +174,10 @@ exports.updateTaskStatus = async (req, res) => {
     );
 
     if (taskIndex === -1) {
-      return res.status(404).json({ message: 'Task not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Task not found' 
+      });
     }
 
     tracker.tasks[taskIndex].isCompleted = isCompleted;
@@ -141,23 +196,28 @@ exports.updateTaskStatus = async (req, res) => {
     await tracker.save();
 
     res.json({
+      success: true,
       message: 'Task updated successfully',
       task: tracker.tasks[taskIndex],
       progress: {
         completed: tracker.completedTasks,
         total: tracker.totalTasks,
-        percentage: (tracker.completedTasks / tracker.totalTasks) * 100
+        percentage: tracker.totalTasks > 0 ? (tracker.completedTasks / tracker.totalTasks) * 100 : 0
       }
     });
   } catch (error) {
     console.error('Update task status error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
 exports.updateMoodAndEnergy = async (req, res) => {
   try {
     const { userId } = req.params;
+    if (!isOwner(req, res)) return;
     const { mood, energyLevel, symptoms, waterIntake } = req.body;
 
     const today = new Date();
@@ -169,7 +229,10 @@ exports.updateMoodAndEnergy = async (req, res) => {
     });
 
     if (!tracker) {
-      return res.status(404).json({ message: 'Tracker not found for today' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Tracker not found for today' 
+      });
     }
 
     if (mood) tracker.mood = mood;
@@ -180,19 +243,24 @@ exports.updateMoodAndEnergy = async (req, res) => {
     await tracker.save();
 
     res.json({
+      success: true,
       message: 'Daily log updated successfully',
       tracker
     });
   } catch (error) {
     console.error('Update mood and energy error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 
 exports.getWeeklyStats = async (req, res) => {
   try {
     const { userId } = req.params;
-    
+    if (!isOwner(req, res)) return;
+
     const endDate = new Date();
     endDate.setHours(23, 59, 59, 999);
     const startDate = new Date();
@@ -253,9 +321,15 @@ exports.getWeeklyStats = async (req, res) => {
     stats.averageMood = moodCount > 0 ? Math.round(moodSum / moodCount) : 0;
     stats.averageEnergy = energyCount > 0 ? Math.round(energySum / energyCount) : 0;
 
-    res.json(stats);
+    res.json({
+      success: true,
+      stats
+    });
   } catch (error) {
     console.error('Get weekly stats error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };

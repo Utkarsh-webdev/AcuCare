@@ -1,3 +1,4 @@
+// backend/models/DailyTracker.js
 const mongoose = require('mongoose');
 
 const dailyTrackerSchema = new mongoose.Schema({
@@ -9,7 +10,11 @@ const dailyTrackerSchema = new mongoose.Schema({
   date: { 
     type: Date, 
     required: true,
-    default: () => new Date().setHours(0, 0, 0, 0)
+    default: () => {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
   },
   tasks: [{
     taskId: { type: mongoose.Schema.Types.ObjectId },
@@ -59,7 +64,6 @@ const dailyTrackerSchema = new mongoose.Schema({
   }
 });
 
-// Index for efficient querying
 dailyTrackerSchema.index({ userId: 1, date: 1 }, { unique: true });
 
 module.exports = mongoose.model('DailyTracker', dailyTrackerSchema);

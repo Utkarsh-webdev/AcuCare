@@ -1,3 +1,4 @@
+// backend/models/HealthPlan.js
 const mongoose = require('mongoose');
 
 const healthPlanSchema = new mongoose.Schema({
