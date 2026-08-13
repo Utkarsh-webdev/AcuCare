@@ -5,7 +5,6 @@
 @import "tailwindcss";
 
 @theme {
-  /* Deep green */
   --color-primary-50: #eef5f1;
   --color-primary-100: #dce9e3;
   --color-primary-200: #bfd4ca;
@@ -17,7 +16,6 @@
   --color-primary-800: #15352f;
   --color-primary-900: #0b2623;
 
-  /* Coral */
   --color-accent-50: #fff0eb;
   --color-accent-100: #ffd9ce;
   --color-accent-200: #ffb6a4;
@@ -27,13 +25,11 @@
   --color-accent-600: #d94729;
   --color-accent-700: #b83821;
 
-  /* Cream */
   --color-cream-50: #fffaf1;
   --color-cream-100: #f8f0e2;
   --color-cream-200: #eee4d3;
   --color-cream-300: #dfd2bd;
 
-  /* Ink */
   --color-ink-50: #f8f6f0;
   --color-ink-100: #e5e0d5;
   --color-ink-300: #a49f94;
@@ -41,19 +37,17 @@
   --color-ink-700: #454841;
   --color-ink-900: #132521;
 
-  /* Fonts */
   --font-display: "Playfair Display", Georgia, serif;
-
-  --font-body:
-    "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-
+  --font-body: "DM Sans", sans-serif;
   --font-mono: "DM Mono", monospace;
 }
 
-/* ROOT */
+/* =========================
+   ROOT
+========================= */
+
 :root {
   color-scheme: dark;
-
   font-family: var(--font-body);
   color: var(--color-cream-100);
   background: var(--color-primary-900);
@@ -64,7 +58,6 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/*/ RESET */
 *,
 *::before,
 *::after {
@@ -74,6 +67,7 @@
 html {
   margin: 0;
   padding: 0;
+  min-width: 320px;
   background: var(--color-primary-900);
   scroll-behavior: smooth;
 }
@@ -92,17 +86,16 @@ body {
     var(--color-primary-900);
 
   color: var(--color-cream-100);
-
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
   min-height: 100vh;
 }
 
-/*/ TYPOGRAPHY */
+/* =========================
+   TYPOGRAPHY
+========================= */
+
 h1,
 h2,
 h3,
@@ -110,7 +103,6 @@ h4,
 h5,
 h6 {
   margin: 0;
-
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -131,22 +123,23 @@ button {
   cursor: pointer;
 }
 
-/*/ SELECTION */
 ::selection {
   background: var(--color-accent-500);
   color: white;
 }
 
-/*/ FOCUS */
 :focus-visible {
   outline: 2px solid var(--color-accent-400);
   outline-offset: 3px;
 }
 
-/*/ SCROLLBAR */
+/* =========================
+   SCROLLBAR
+========================= */
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
@@ -162,10 +155,12 @@ button {
   background: #4a7167;
 }
 
-/*/ ACUCARE PAGE */
+/* =========================
+   ACUCARE PAGE
+========================= */
+
 .acu-page {
   min-height: 100vh;
-
   animation: acu-page-enter 400ms ease-out;
 }
 
@@ -181,15 +176,18 @@ button {
   }
 }
 
-/*/ DISPLAY TEXT */
-.acu-display {
-  font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: -0.04em;
-}
+/* =========================
+   FONTS
+========================= */
 
+.acu-display,
 .acu-serif {
   font-family: var(--font-display);
+}
+
+.acu-display {
+  font-weight: 600;
+  letter-spacing: -0.04em;
 }
 
 .acu-mono {
@@ -197,16 +195,9 @@ button {
   letter-spacing: 0.04em;
 }
 
-/*/ SURFACES */
-.acu-surface {
-  background: var(--color-cream-100);
-  color: var(--color-ink-900);
-}
-
-.acu-surface-soft {
-  background: var(--color-cream-200);
-  color: var(--color-ink-900);
-}
+/* =========================
+   CARDS
+========================= */
 
 .acu-card {
   background: var(--color-cream-100);
@@ -228,10 +219,13 @@ button {
   border-radius: 16px;
 }
 
-/*/ BUTTONS */
-.acu-button {
-  display: inline-flex;
+/* =========================
+   BUTTONS
+========================= */
 
+.acu-button,
+.acu-button-outline {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -239,27 +233,27 @@ button {
   min-height: 42px;
   padding: 10px 17px;
 
-  border: 1px solid transparent;
   border-radius: 9px;
-
-  background: var(--color-accent-500);
-  color: #fffaf4;
 
   font-size: 13px;
   font-weight: 700;
-  letter-spacing: -0.01em;
 
   transition:
     transform 160ms ease,
     background 160ms ease,
+    border-color 160ms ease,
     box-shadow 160ms ease;
+}
+
+.acu-button {
+  border: 1px solid transparent;
+  background: var(--color-accent-500);
+  color: #fffaf4;
 }
 
 .acu-button:hover {
   background: var(--color-accent-600);
-
   transform: translateY(-1px);
-
   box-shadow: 0 7px 18px rgba(239, 89, 55, 0.22);
 }
 
@@ -275,25 +269,9 @@ button {
 }
 
 .acu-button-outline {
-  display: inline-flex;
-
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-
-  min-height: 42px;
-  padding: 10px 17px;
-
   border: 1px solid rgba(245, 238, 225, 0.22);
-  border-radius: 9px;
-
   background: transparent;
   color: var(--color-cream-100);
-  font-size: 13px;
-  font-weight: 600;
-  transition:
-    background 160ms ease,
-    border-color 160ms ease;
 }
 
 .acu-button-outline:hover {
@@ -301,7 +279,10 @@ button {
   border-color: rgba(245, 238, 225, 0.38);
 }
 
-/*/ NAVBAR */
+/* =========================
+   NAVBAR
+========================= */
+
 .acu-navbar {
   position: sticky;
   top: 0;
@@ -326,10 +307,7 @@ button {
   transition: color 160ms ease;
 }
 
-.acu-nav-link:hover {
-  color: var(--color-cream-100);
-}
-
+.acu-nav-link:hover,
 .acu-nav-link-active {
   color: var(--color-cream-100);
 }
@@ -348,12 +326,13 @@ button {
   border-radius: 999px;
 }
 
-/*/ DASHBOARD HEADER */
+/* =========================
+   DASHBOARD HEADER
+========================= */
+
 .acu-dashboard-header {
   position: relative;
-
   padding: 38px 0 28px;
-
   border-bottom: 1px solid rgba(245, 238, 225, 0.12);
 }
 
@@ -361,7 +340,6 @@ button {
   content: "";
 
   position: absolute;
-
   left: 0;
   bottom: -2px;
 
@@ -369,14 +347,14 @@ button {
   height: 3px;
 
   background: var(--color-accent-500);
-
   border-radius: 999px;
 }
 
-/*/ STAT CARD */
-.acu-stat-card {
-  position: relative;
+/* =========================
+   STAT CARDS
+========================= */
 
+.acu-stat-card {
   min-height: 124px;
   padding: 20px;
 
@@ -384,19 +362,15 @@ button {
   color: var(--color-ink-900);
 
   border-radius: 12px;
-
   overflow: hidden;
 }
 
 .acu-stat-label {
   font-family: var(--font-mono);
-
   font-size: 9px;
   font-weight: 500;
-
   text-transform: uppercase;
   letter-spacing: 0.12em;
-
   color: #7a817b;
 }
 
@@ -404,31 +378,30 @@ button {
   margin-top: 13px;
 
   font-family: var(--font-display);
-
   font-size: 31px;
   line-height: 1;
-
   letter-spacing: -0.04em;
 }
 
 .acu-stat-meta {
   margin-top: 8px;
-
   font-size: 11px;
   color: #7a817b;
 }
 
-/*/ TASK LIST */
+/* =========================
+   TASKS
+========================= */
+
 .acu-task-card {
   background: var(--color-cream-100);
   color: var(--color-ink-900);
-
   border-radius: 14px;
+  overflow: hidden;
 }
 
 .acu-task-row {
   display: flex;
-
   align-items: center;
   gap: 14px;
 
@@ -436,10 +409,16 @@ button {
   padding: 12px 16px;
 
   border-bottom: 1px solid rgba(19, 37, 33, 0.08);
+
+  transition: background 160ms ease;
 }
 
 .acu-task-row:last-child {
   border-bottom: 0;
+}
+
+.acu-task-row:hover {
+  background: #fffaf1;
 }
 
 .acu-task-dot {
@@ -456,24 +435,23 @@ button {
   margin-left: auto;
 
   font-family: var(--font-mono);
-
   font-size: 10px;
-
   color: #7a817b;
 }
 
-/*/ EMPTY STATE */
+/* =========================
+   EMPTY STATE
+========================= */
+
 .acu-empty {
   min-height: 250px;
 
   display: flex;
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
 
   padding: 32px;
-
   text-align: center;
 }
 
@@ -499,16 +477,13 @@ button {
 
 .acu-empty-title {
   font-family: var(--font-display);
-
   font-size: 23px;
   font-weight: 600;
-
   color: var(--color-ink-900);
 }
 
 .acu-empty-text {
   max-width: 420px;
-
   margin-top: 8px;
 
   font-size: 13px;
@@ -517,10 +492,12 @@ button {
   color: #7a817b;
 }
 
-/*/ FORM ELEMENTS */
+/* =========================
+   FORMS
+========================= */
+
 .acu-input {
   width: 100%;
-
   min-height: 44px;
   padding: 10px 13px;
 
@@ -530,7 +507,6 @@ button {
   border-radius: 9px;
 
   color: var(--color-ink-900);
-
   outline: none;
 
   transition:
@@ -544,14 +520,15 @@ button {
 
 .acu-input:focus {
   border-color: var(--color-primary-500);
-
   box-shadow: 0 0 0 3px rgba(63, 113, 100, 0.12);
 }
 
-/*/ BADGES */
+/* =========================
+   BADGES
+========================= */
+
 .acu-badge {
   display: inline-flex;
-
   align-items: center;
   gap: 5px;
 
@@ -560,7 +537,6 @@ button {
   border-radius: 999px;
 
   font-family: var(--font-mono);
-
   font-size: 9px;
   letter-spacing: 0.04em;
 }
@@ -575,14 +551,19 @@ button {
   color: var(--color-accent-700);
 }
 
-/*/ DIVIDERS */
+/* =========================
+   DIVIDER
+========================= */
+
 .acu-divider {
   height: 1px;
-
   background: rgba(245, 238, 225, 0.12);
 }
 
-/*/ MOBILE */
+/* =========================
+   MOBILE
+========================= */
+
 @media (max-width: 768px) {
   .acu-dashboard-header {
     padding: 28px 0 22px;
@@ -601,9 +582,16 @@ button {
     min-height: 220px;
     padding: 24px 18px;
   }
+
+  .acu-task-row {
+    padding: 12px;
+  }
 }
 
-/*/ REDUCED MOTION */
+/* =========================
+   REDUCED MOTION
+========================= */
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
