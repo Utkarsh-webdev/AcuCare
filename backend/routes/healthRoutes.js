@@ -1,22 +1,44 @@
 // backend/routes/healthRoutes.js
+
 const express = require('express');
 const router = express.Router();
-const healthController = require('../controllers/healthController');
-const auth = require('../middleware/auth');
 
-// All routes require authentication
+const healthController =
+  require('../controllers/healthController');
+
+const auth =
+  require('../middleware/auth');
+
 router.use(auth);
 
-// Health plan routes
-router.post('/generate-plan/:userId', healthController.generateHealthPlan);
-router.get('/plan/:userId', healthController.getHealthPlan);
+router.post(
+  '/generate-plan',
+  healthController.generateHealthPlan
+);
 
-// Daily tracker routes
-router.get('/tracker/today/:userId', healthController.getTodayTracker);
-router.put('/tracker/task/:userId/:taskId', healthController.updateTaskStatus);
-router.put('/tracker/daily/:userId', healthController.updateMoodAndEnergy);
+router.get(
+  '/plan',
+  healthController.getHealthPlan
+);
 
-// Analytics routes
-router.get('/stats/weekly/:userId', healthController.getWeeklyStats);
+router.get(
+  '/tracker/today',
+  healthController.getTodayTracker
+);
+
+router.put(
+  '/tracker/task/:taskId',
+  healthController.updateTaskStatus
+);
+
+router.put(
+  '/tracker/daily',
+  healthController.updateMoodAndEnergy
+);
+
+router.get(
+  '/stats/weekly',
+  healthController.getWeeklyStats
+);
 
 module.exports = router;

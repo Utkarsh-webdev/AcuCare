@@ -1,4 +1,7 @@
-/* frontend/src/index.css */
+/* ============================================
+   frontend/src/index.css
+   AcuCare Design System
+============================================ */
 
 @import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap");
 
@@ -42,16 +45,14 @@
   --font-mono: "DM Mono", monospace;
 }
 
-/* =========================
-   ROOT
-========================= */
-
+/* --------------------------------------------
+   Base & Reset
+-------------------------------------------- */
 :root {
   color-scheme: dark;
   font-family: var(--font-body);
   color: var(--color-cream-100);
   background: var(--color-primary-900);
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -76,15 +77,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-
   background:
-    radial-gradient(
-      circle at 50% -20%,
-      rgba(63, 113, 100, 0.12),
-      transparent 40%
-    ),
+    radial-gradient(circle at 50% -20%, rgba(63, 113, 100, 0.12), transparent 40%),
     var(--color-primary-900);
-
   color: var(--color-cream-100);
 }
 
@@ -92,40 +87,24 @@ body {
   min-height: 100vh;
 }
 
-/* =========================
-   TYPOGRAPHY
-========================= */
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+h1, h2, h3, h4, h5, h6 {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.025em;
 }
 
-p {
-  margin: 0;
-}
+p { margin: 0; }
 
-button,
-input,
-textarea,
-select {
+button, input, textarea, select {
   font: inherit;
 }
 
-button {
-  cursor: pointer;
-}
+button { cursor: pointer; }
 
 ::selection {
   background: var(--color-accent-500);
-  color: white;
+  color: #fff;
 }
 
 :focus-visible {
@@ -133,111 +112,89 @@ button {
   outline-offset: 3px;
 }
 
-/* =========================
-   SCROLLBAR
-========================= */
-
+/* --------------------------------------------
+   Scrollbar
+-------------------------------------------- */
 ::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
-
 ::-webkit-scrollbar-track {
   background: var(--color-primary-900);
 }
-
 ::-webkit-scrollbar-thumb {
   background: #35574f;
   border-radius: 999px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background: #4a7167;
 }
 
-/* =========================
-   ACUCARE PAGE
-========================= */
+/* --------------------------------------------
+   Typography helpers
+-------------------------------------------- */
+.acu-display,
+.acu-serif {
+  font-family: var(--font-display);
+}
+.acu-display {
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+.acu-mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
 
+/* --------------------------------------------
+   Page animation
+-------------------------------------------- */
 .acu-page {
   min-height: 100vh;
   animation: acu-page-enter 400ms ease-out;
 }
-
 @keyframes acu-page-enter {
   from {
     opacity: 0;
     transform: translateY(8px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-/* =========================
-   FONTS
-========================= */
-
-.acu-display,
-.acu-serif {
-  font-family: var(--font-display);
-}
-
-.acu-display {
-  font-weight: 600;
-  letter-spacing: -0.04em;
-}
-
-.acu-mono {
-  font-family: var(--font-mono);
-  letter-spacing: 0.04em;
-}
-
-/* =========================
-   CARDS
-========================= */
-
+/* --------------------------------------------
+   Cards
+-------------------------------------------- */
 .acu-card {
   background: var(--color-cream-100);
   color: var(--color-ink-900);
-
   border: 1px solid rgba(19, 37, 33, 0.08);
   border-radius: 16px;
-
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 8px 24px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
 }
-
 .acu-card-dark {
   background: rgba(245, 238, 225, 0.045);
   color: var(--color-cream-100);
-
   border: 1px solid rgba(245, 238, 225, 0.12);
   border-radius: 16px;
 }
 
-/* =========================
-   BUTTONS
-========================= */
-
+/* --------------------------------------------
+   Buttons
+-------------------------------------------- */
 .acu-button,
 .acu-button-outline {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-
   min-height: 42px;
   padding: 10px 17px;
-
   border-radius: 9px;
-
   font-size: 13px;
   font-weight: 700;
-
   transition:
     transform 160ms ease,
     background 160ms ease,
@@ -250,17 +207,12 @@ button {
   background: var(--color-accent-500);
   color: #fffaf4;
 }
-
 .acu-button:hover {
   background: var(--color-accent-600);
   transform: translateY(-1px);
   box-shadow: 0 7px 18px rgba(239, 89, 55, 0.22);
 }
-
-.acu-button:active {
-  transform: translateY(0);
-}
-
+.acu-button:active { transform: translateY(0); }
 .acu-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -273,98 +225,76 @@ button {
   background: transparent;
   color: var(--color-cream-100);
 }
-
 .acu-button-outline:hover {
   background: rgba(245, 238, 225, 0.07);
   border-color: rgba(245, 238, 225, 0.38);
 }
 
-/* =========================
-   NAVBAR
-========================= */
-
+/* --------------------------------------------
+   Navbar
+-------------------------------------------- */
 .acu-navbar {
   position: sticky;
   top: 0;
   z-index: 50;
-
   border-bottom: 1px solid rgba(245, 238, 225, 0.09);
-
   background: rgba(11, 38, 35, 0.94);
-
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
 
 .acu-nav-link {
   position: relative;
-
   color: #aebcb6;
-
   font-size: 13px;
   font-weight: 500;
-
   transition: color 160ms ease;
 }
-
 .acu-nav-link:hover,
 .acu-nav-link-active {
   color: var(--color-cream-100);
 }
-
 .acu-nav-link-active::after {
   content: "";
-
   position: absolute;
   left: 0;
   right: 0;
   bottom: -9px;
-
   height: 2px;
-
   background: var(--color-accent-500);
   border-radius: 999px;
 }
 
-/* =========================
-   DASHBOARD HEADER
-========================= */
-
+/* --------------------------------------------
+   Dashboard header
+-------------------------------------------- */
 .acu-dashboard-header {
   position: relative;
   padding: 38px 0 28px;
   border-bottom: 1px solid rgba(245, 238, 225, 0.12);
 }
-
 .acu-dashboard-header::after {
   content: "";
-
   position: absolute;
   left: 0;
   bottom: -2px;
-
   width: 92px;
   height: 3px;
-
   background: var(--color-accent-500);
   border-radius: 999px;
 }
 
-/* =========================
-   STAT CARDS
-========================= */
-
+/* --------------------------------------------
+   Stat cards
+-------------------------------------------- */
 .acu-stat-card {
   min-height: 124px;
   padding: 20px;
-
   background: var(--color-cream-100);
   color: var(--color-ink-900);
-
   border-radius: 12px;
   overflow: hidden;
 }
-
 .acu-stat-label {
   font-family: var(--font-mono);
   font-size: 9px;
@@ -373,225 +303,173 @@ button {
   letter-spacing: 0.12em;
   color: #7a817b;
 }
-
 .acu-stat-value {
   margin-top: 13px;
-
   font-family: var(--font-display);
   font-size: 31px;
   line-height: 1;
   letter-spacing: -0.04em;
 }
-
 .acu-stat-meta {
   margin-top: 8px;
   font-size: 11px;
   color: #7a817b;
 }
 
-/* =========================
-   TASKS
-========================= */
-
+/* --------------------------------------------
+   Task list
+-------------------------------------------- */
 .acu-task-card {
   background: var(--color-cream-100);
   color: var(--color-ink-900);
   border-radius: 14px;
   overflow: hidden;
 }
-
 .acu-task-row {
   display: flex;
   align-items: center;
   gap: 14px;
-
   min-height: 62px;
   padding: 12px 16px;
-
   border-bottom: 1px solid rgba(19, 37, 33, 0.08);
-
   transition: background 160ms ease;
 }
-
-.acu-task-row:last-child {
-  border-bottom: 0;
-}
-
-.acu-task-row:hover {
-  background: #fffaf1;
-}
+.acu-task-row:last-child { border-bottom: 0; }
+.acu-task-row:hover { background: #fffaf1; }
 
 .acu-task-dot {
   width: 9px;
   height: 9px;
-
   flex: 0 0 auto;
-
   border: 2px solid var(--color-accent-500);
   border-radius: 50%;
 }
-
 .acu-task-time {
   margin-left: auto;
-
   font-family: var(--font-mono);
   font-size: 10px;
   color: #7a817b;
 }
 
-/* =========================
-   EMPTY STATE
-========================= */
-
+/* --------------------------------------------
+   Empty state
+-------------------------------------------- */
 .acu-empty {
   min-height: 250px;
-
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-
   padding: 32px;
   text-align: center;
 }
-
 .acu-empty-icon {
   display: flex;
-
   width: 50px;
   height: 50px;
-
   align-items: center;
   justify-content: center;
-
   margin-bottom: 18px;
-
   background: var(--color-primary-900);
   color: var(--color-accent-500);
-
   border-radius: 50%;
-
   font-family: var(--font-mono);
   font-size: 20px;
 }
-
 .acu-empty-title {
   font-family: var(--font-display);
   font-size: 23px;
   font-weight: 600;
   color: var(--color-ink-900);
 }
-
 .acu-empty-text {
   max-width: 420px;
   margin-top: 8px;
-
   font-size: 13px;
   line-height: 1.7;
-
   color: #7a817b;
 }
 
-/* =========================
-   FORMS
-========================= */
-
+/* --------------------------------------------
+   Form inputs
+-------------------------------------------- */
 .acu-input {
   width: 100%;
   min-height: 44px;
   padding: 10px 13px;
-
   background: var(--color-cream-50);
-
   border: 1px solid rgba(19, 37, 33, 0.15);
   border-radius: 9px;
-
   color: var(--color-ink-900);
   outline: none;
-
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease;
 }
-
 .acu-input::placeholder {
   color: #9b9b92;
 }
-
 .acu-input:focus {
   border-color: var(--color-primary-500);
   box-shadow: 0 0 0 3px rgba(63, 113, 100, 0.12);
 }
 
-/* =========================
-   BADGES
-========================= */
-
+/* --------------------------------------------
+   Badges
+-------------------------------------------- */
 .acu-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-
   padding: 5px 9px;
-
   border-radius: 999px;
-
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.04em;
 }
-
 .acu-badge-green {
   background: #e2eee8;
   color: #285b4d;
 }
-
 .acu-badge-coral {
   background: var(--color-accent-100);
   color: var(--color-accent-700);
 }
 
-/* =========================
-   DIVIDER
-========================= */
-
+/* --------------------------------------------
+   Divider
+-------------------------------------------- */
 .acu-divider {
   height: 1px;
   background: rgba(245, 238, 225, 0.12);
 }
 
-/* =========================
-   MOBILE
-========================= */
-
+/* --------------------------------------------
+   Responsive adjustments
+-------------------------------------------- */
 @media (max-width: 768px) {
   .acu-dashboard-header {
     padding: 28px 0 22px;
   }
-
   .acu-stat-card {
     min-height: 112px;
     padding: 16px;
   }
-
   .acu-stat-value {
     font-size: 27px;
   }
-
   .acu-empty {
     min-height: 220px;
     padding: 24px 18px;
   }
-
   .acu-task-row {
     padding: 12px;
   }
 }
 
-/* =========================
-   REDUCED MOTION
-========================= */
-
+/* --------------------------------------------
+   Reduced motion
+-------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

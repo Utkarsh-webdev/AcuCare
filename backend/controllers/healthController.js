@@ -1,276 +1,592 @@
 // backend/controllers/healthController.js
+
+const mongoose = require('mongoose');
+
 const HealthPlan = require('../models/HealthPlan');
 const DailyTracker = require('../models/DailyTracker');
 const User = require('../models/User');
 const aiService = require('../services/aiService');
-const mongoose = require('mongoose');
 
-// req.userId comes from the auth middleware (decoded JWT).
-// Without this check any logged-in user could pass another
-// user's :userId in the URL and read/edit their health data.
-const isOwner = (req, res) => {
-  if (req.params.userId !== req.userId) {
-    res.status(403).json({ success: false, message: 'Not authorized' });
-    return false;
-  }
-  return true;
+// ======================================================
+// Helpers
+// ======================================================
+
+const getToday = () => {
+  const today = new Date();
+
+  today.setHours(0, 0, 0, 0);
+
+  return today;
 };
+
+const getUserId = (req) => {
+  return req.userId;
+};
+
+const validateUserId = (userId) => {
+  return mongoose.Types.ObjectId.isValid(userId);
+};
+
+// ======================================================
+// Generate Health Plan
+// POST /api/health/generate-plan
+// ======================================================
 
 exports.generateHealthPlan = async (req, res) => {
   try {
-    const { userId } = req.params;
-    if (!isOwner(req, res)) return;
+    const userId = getUserId(req);
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ 
+    if (!userId || !validateUserId(userId)) {
+      return res.status(401).json({
         success: false,
-        message: 'User not found' 
+        message: 'Invalid authentication'
       });
     }
 
+    const user = await User.findById(userId).select(
+      '-password'
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Generate plan using authenticated user's data
     const planData = await aiService.generateHealthPlan(user);
 
-    // Retire any previously active plan so getHealthPlan doesn't
-    // have to rely on sort order alone to find the current one.
+    if (!planData) {
+      return res.status(500).json({
+        success: false,
+        message: 'AI failed to generate health plan'
+      });
+    }
+
+    // Deactivate previous plans
     await HealthPlan.updateMany(
-      { userId: user._id, active: true },
-      { $set: { active: false } }
-    );
-
-    const healthPlan = new HealthPlan({
-      userId: user._id,
-      conditionsHandled: user.medicalConditions,
-      ...planData
-    });
-    await healthPlan.save();
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const newTasks = planData.dailyTasks.map(task => ({
-      taskId: new mongoose.Types.ObjectId(),
-      ...task
-    }));
-
-    // date+userId is a unique index — regenerating a plan on a day
-    // that already has a tracker would otherwise throw E11000.
-    const dailyTracker = await DailyTracker.findOneAndUpdate(
-      { userId: user._id, date: today },
+      {
+        userId: user._id,
+        active: true
+      },
       {
         $set: {
-          tasks: newTasks,
-          totalTasks: newTasks.length,
-          completedTasks: 0
+          active: false
         }
-      },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      }
     );
 
-    res.status(201).json({
+    // Create new active health plan
+    const healthPlan = new HealthPlan({
+      userId: user._id,
+
+      conditionsHandled:
+        user.medicalConditions || [],
+
+      dietaryPlan:
+        planData.dietaryPlan || {
+          breakfast: [],
+          lunch: [],
+          dinner: [],
+          snacks: [],
+          restrictions: [],
+          fluidIntake: {
+            recommended: '',
+            details: ''
+          }
+        },
+
+      medicationSchedule:
+        planData.medicationSchedule || [],
+
+      lifestyleSuggestions:
+        planData.lifestyleSuggestions || [],
+
+      dailyTasks:
+        planData.dailyTasks || [],
+
+      active: true
+    });
+
+    await healthPlan.save();
+
+    // ==================================================
+    // Create today's tracker
+    // ==================================================
+
+    const today = getToday();
+
+    const newTasks = (
+      planData.dailyTasks || []
+    ).map((task) => ({
+      taskId: new mongoose.Types.ObjectId(),
+
+      title: task.title || 'Health task',
+
+      category: task.category || 'Habit',
+
+      scheduledTime:
+        task.scheduledTime || '',
+
+      priority:
+        task.priority || 'Medium',
+
+      isCompleted: false,
+
+      completedAt: null,
+
+      notes: ''
+    }));
+
+    const dailyTracker =
+      await DailyTracker.findOneAndUpdate(
+        {
+          userId: user._id,
+          date: today
+        },
+        {
+          $set: {
+            tasks: newTasks,
+            totalTasks: newTasks.length,
+            completedTasks: 0
+          }
+        },
+        {
+          new: true,
+          upsert: true,
+          setDefaultsOnInsert: true
+        }
+      );
+
+    return res.status(201).json({
       success: true,
       message: 'Health plan generated successfully',
+
       healthPlan,
+
       dailyTracker
     });
+
   } catch (error) {
-    console.error('Generate health plan error:', error);
-    res.status(500).json({ 
+    console.error(
+      'Generate health plan error:',
+      error
+    );
+
+    return res.status(500).json({
       success: false,
-      message: error.message 
+      message: 'Failed to generate health plan'
     });
   }
 };
+
+// ======================================================
+// Get Active Health Plan
+// GET /api/health/plan
+// ======================================================
 
 exports.getHealthPlan = async (req, res) => {
   try {
-    const { userId } = req.params;
-    if (!isOwner(req, res)) return;
+    const userId = getUserId(req);
 
-    const healthPlan = await HealthPlan.findOne({ 
-      userId, 
-      active: true 
-    }).sort({ createdAt: -1 });
-
-    if (!healthPlan) {
-      return res.status(404).json({ 
+    if (!userId || !validateUserId(userId)) {
+      return res.status(401).json({
         success: false,
-        message: 'No active health plan found' 
+        message: 'Invalid authentication'
       });
     }
 
-    res.json({
-      success: true,
-      healthPlan
-    });
+    const healthPlan =
+      await HealthPlan.findOne({
+        userId,
+        active: true
+      })
+        .sort({
+          createdAt: -1
+        })
+        .lean();
+
+    if (!healthPlan) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active health plan found'
+      });
+    }
+
+    // Return plan directly.
+    // Frontend expects response.data.dietaryPlan
+    return res.json(healthPlan);
+
   } catch (error) {
-    console.error('Get health plan error:', error);
-    res.status(500).json({ 
+    console.error(
+      'Get health plan error:',
+      error
+    );
+
+    return res.status(500).json({
       success: false,
-      message: error.message 
+      message: 'Failed to load health plan'
     });
   }
 };
 
+// ======================================================
+// Get Today's Tracker
+// GET /api/health/tracker/today
+// ======================================================
+
 exports.getTodayTracker = async (req, res) => {
   try {
-    const { userId } = req.params;
-    if (!isOwner(req, res)) return;
+    const userId = getUserId(req);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    if (!userId || !validateUserId(userId)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid authentication'
+      });
+    }
 
-    let tracker = await DailyTracker.findOne({ 
-      userId, 
-      date: today 
-    });
+    const today = getToday();
 
+    let tracker =
+      await DailyTracker.findOne({
+        userId,
+        date: today
+      });
+
+    // Create empty tracker if none exists
     if (!tracker) {
       tracker = new DailyTracker({
         userId,
         date: today,
         tasks: [],
-        totalTasks: 0
+        totalTasks: 0,
+        completedTasks: 0,
+        mood: '',
+        energyLevel: 5,
+        waterIntake: 0,
+        symptoms: []
       });
+
       await tracker.save();
     }
 
-    res.json({
-      success: true,
-      tracker
-    });
+    // Return tracker directly.
+    // Frontend expects response.data.tasks
+    return res.json(tracker);
+
   } catch (error) {
-    console.error('Get today tracker error:', error);
-    res.status(500).json({ 
+    console.error(
+      'Get today tracker error:',
+      error
+    );
+
+    return res.status(500).json({
       success: false,
-      message: error.message 
+      message: 'Failed to load daily tracker'
     });
   }
 };
+
+// ======================================================
+// Update Task Status
+// PUT /api/health/tracker/task/:taskId
+// ======================================================
 
 exports.updateTaskStatus = async (req, res) => {
   try {
-    const { userId, taskId } = req.params;
-    if (!isOwner(req, res)) return;
-    const { isCompleted, notes } = req.body;
+    const userId = getUserId(req);
+    const { taskId } = req.params;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const { isCompleted, notes } =
+      req.body;
 
-    const tracker = await DailyTracker.findOne({ 
-      userId, 
-      date: today 
-    });
-
-    if (!tracker) {
-      return res.status(404).json({ 
+    if (!userId || !validateUserId(userId)) {
+      return res.status(401).json({
         success: false,
-        message: 'Tracker not found for today' 
+        message: 'Invalid authentication'
       });
     }
 
-    const taskIndex = tracker.tasks.findIndex(t => 
-      t.taskId.toString() === taskId
-    );
+    if (
+      !taskId ||
+      !mongoose.Types.ObjectId.isValid(taskId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid task ID'
+      });
+    }
+
+    if (
+      typeof isCompleted !== 'boolean'
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'isCompleted must be boolean'
+      });
+    }
+
+    const today = getToday();
+
+    const tracker =
+      await DailyTracker.findOne({
+        userId,
+        date: today
+      });
+
+    if (!tracker) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tracker not found for today'
+      });
+    }
+
+    const taskIndex =
+      tracker.tasks.findIndex(
+        (task) =>
+          task.taskId.toString() ===
+          taskId
+      );
 
     if (taskIndex === -1) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Task not found' 
+        message: 'Task not found'
       });
     }
 
-    tracker.tasks[taskIndex].isCompleted = isCompleted;
-    if (isCompleted) {
-      tracker.tasks[taskIndex].completedAt = new Date();
-      tracker.completedTasks += 1;
-    } else {
-      tracker.tasks[taskIndex].completedAt = null;
-      tracker.completedTasks = Math.max(0, tracker.completedTasks - 1);
+    const task =
+      tracker.tasks[taskIndex];
+
+    const previousStatus =
+      task.isCompleted;
+
+    // Update only if state actually changed
+    if (
+      previousStatus !== isCompleted
+    ) {
+      task.isCompleted =
+        isCompleted;
+
+      if (isCompleted) {
+        task.completedAt =
+          new Date();
+
+        tracker.completedTasks =
+          Math.min(
+            tracker.totalTasks,
+            tracker.completedTasks + 1
+          );
+      } else {
+        task.completedAt = null;
+
+        tracker.completedTasks =
+          Math.max(
+            0,
+            tracker.completedTasks - 1
+          );
+      }
     }
 
-    if (notes) {
-      tracker.tasks[taskIndex].notes = notes;
+    if (typeof notes === 'string') {
+      task.notes = notes;
     }
 
     await tracker.save();
 
-    res.json({
+    const percentage =
+      tracker.totalTasks > 0
+        ? (
+            tracker.completedTasks /
+            tracker.totalTasks
+          ) * 100
+        : 0;
+
+    return res.json({
       success: true,
-      message: 'Task updated successfully',
-      task: tracker.tasks[taskIndex],
+
+      message:
+        'Task updated successfully',
+
+      task,
+
       progress: {
-        completed: tracker.completedTasks,
-        total: tracker.totalTasks,
-        percentage: tracker.totalTasks > 0 ? (tracker.completedTasks / tracker.totalTasks) * 100 : 0
+        completed:
+          tracker.completedTasks,
+
+        total:
+          tracker.totalTasks,
+
+        percentage: Math.round(
+          percentage
+        )
       }
     });
+
   } catch (error) {
-    console.error('Update task status error:', error);
-    res.status(500).json({ 
+    console.error(
+      'Update task status error:',
+      error
+    );
+
+    return res.status(500).json({
       success: false,
-      message: error.message 
+      message: 'Failed to update task'
     });
   }
 };
 
-exports.updateMoodAndEnergy = async (req, res) => {
+// ======================================================
+// Update Daily Log
+// PUT /api/health/tracker/daily
+// ======================================================
+
+exports.updateMoodAndEnergy = async (
+  req,
+  res
+) => {
   try {
-    const { userId } = req.params;
-    if (!isOwner(req, res)) return;
-    const { mood, energyLevel, symptoms, waterIntake } = req.body;
+    const userId = getUserId(req);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const {
+      mood,
+      energyLevel,
+      symptoms,
+      waterIntake
+    } = req.body;
 
-    const tracker = await DailyTracker.findOne({ 
-      userId, 
-      date: today 
-    });
-
-    if (!tracker) {
-      return res.status(404).json({ 
+    if (!userId || !validateUserId(userId)) {
+      return res.status(401).json({
         success: false,
-        message: 'Tracker not found for today' 
+        message: 'Invalid authentication'
       });
     }
 
-    if (mood) tracker.mood = mood;
-    if (energyLevel) tracker.energyLevel = energyLevel;
-    if (symptoms) tracker.symptoms = symptoms;
-    if (waterIntake !== undefined) tracker.waterIntake = waterIntake;
+    const today = getToday();
+
+    const tracker =
+      await DailyTracker.findOne({
+        userId,
+        date: today
+      });
+
+    if (!tracker) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tracker not found for today'
+      });
+    }
+
+    if (mood !== undefined) {
+      tracker.mood = mood;
+    }
+
+    if (energyLevel !== undefined) {
+      const energy =
+        Number(energyLevel);
+
+      if (
+        Number.isInteger(energy) &&
+        energy >= 1 &&
+        energy <= 10
+      ) {
+        tracker.energyLevel =
+          energy;
+      }
+    }
+
+    if (symptoms !== undefined) {
+      tracker.symptoms =
+        Array.isArray(symptoms)
+          ? symptoms
+          : [];
+    }
+
+    if (waterIntake !== undefined) {
+      const water =
+        Number(waterIntake);
+
+      if (
+        Number.isFinite(water) &&
+        water >= 0 &&
+        water <= 20
+      ) {
+        tracker.waterIntake =
+          water;
+      }
+    }
 
     await tracker.save();
 
-    res.json({
-      success: true,
-      message: 'Daily log updated successfully',
-      tracker
-    });
+    return res.json(tracker);
+
   } catch (error) {
-    console.error('Update mood and energy error:', error);
-    res.status(500).json({ 
+    console.error(
+      'Update mood and energy error:',
+      error
+    );
+
+    return res.status(500).json({
       success: false,
-      message: error.message 
+      message: 'Failed to update daily log'
     });
   }
 };
 
-exports.getWeeklyStats = async (req, res) => {
+// ======================================================
+// Weekly Statistics
+// GET /api/health/stats/weekly
+// ======================================================
+
+exports.getWeeklyStats = async (
+  req,
+  res
+) => {
   try {
-    const { userId } = req.params;
-    if (!isOwner(req, res)) return;
+    const userId = getUserId(req);
+
+    if (!userId || !validateUserId(userId)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid authentication'
+      });
+    }
 
     const endDate = new Date();
-    endDate.setHours(23, 59, 59, 999);
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 6);
-    startDate.setHours(0, 0, 0, 0);
 
-    const trackers = await DailyTracker.find({
-      userId,
-      date: { $gte: startDate, $lte: endDate }
-    }).sort({ date: 1 });
+    endDate.setHours(
+      23,
+      59,
+      59,
+      999
+    );
+
+    const startDate = new Date();
+
+    startDate.setDate(
+      startDate.getDate() - 6
+    );
+
+    startDate.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+    const trackers =
+      await DailyTracker.find({
+        userId,
+
+        date: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      }).sort({
+        date: 1
+      });
 
     const stats = {
       dates: [],
@@ -284,52 +600,104 @@ exports.getWeeklyStats = async (req, res) => {
 
     let moodSum = 0;
     let moodCount = 0;
+
     let energySum = 0;
     let energyCount = 0;
 
-    trackers.forEach(tracker => {
-      const dateStr = tracker.date.toISOString().split('T')[0];
-      stats.dates.push(dateStr);
-      
-      const rate = tracker.totalTasks > 0 
-        ? (tracker.completedTasks / tracker.totalTasks) * 100 
+    const moodMap = {
+      Great: 5,
+      Good: 4,
+      Ok: 3,
+      Bad: 2,
+      Terrible: 1
+    };
+
+    trackers.forEach(
+      (tracker) => {
+        const dateStr =
+          tracker.date
+            .toISOString()
+            .split('T')[0];
+
+        stats.dates.push(
+          dateStr
+        );
+
+        const completionRate =
+          tracker.totalTasks > 0
+            ? (
+                tracker.completedTasks /
+                tracker.totalTasks
+              ) * 100
+            : 0;
+
+        stats.completionRates.push(
+          Math.round(
+            completionRate
+          )
+        );
+
+        stats.totalTasks +=
+          tracker.totalTasks || 0;
+
+        stats.completedTasks +=
+          tracker.completedTasks || 0;
+
+        stats.totalWaterIntake +=
+          tracker.waterIntake || 0;
+
+        if (
+          tracker.mood &&
+          moodMap[tracker.mood]
+        ) {
+          moodSum +=
+            moodMap[
+              tracker.mood
+            ];
+
+          moodCount++;
+        }
+
+        if (
+          typeof tracker.energyLevel ===
+          'number'
+        ) {
+          energySum +=
+            tracker.energyLevel;
+
+          energyCount++;
+        }
+      }
+    );
+
+    stats.averageMood =
+      moodCount > 0
+        ? Math.round(
+            moodSum / moodCount
+          )
         : 0;
-      stats.completionRates.push(Math.round(rate));
-      
-      stats.totalTasks += tracker.totalTasks;
-      stats.completedTasks += tracker.completedTasks;
-      stats.totalWaterIntake += tracker.waterIntake || 0;
 
-      if (tracker.mood) {
-        const moodMap = {
-          'Great': 5,
-          'Good': 4,
-          'Ok': 3,
-          'Bad': 2,
-          'Terrible': 1
-        };
-        moodSum += moodMap[tracker.mood] || 0;
-        moodCount++;
-      }
+    stats.averageEnergy =
+      energyCount > 0
+        ? Math.round(
+            energySum /
+              energyCount
+          )
+        : 0;
 
-      if (tracker.energyLevel) {
-        energySum += tracker.energyLevel;
-        energyCount++;
-      }
-    });
+    // Return stats directly.
+    // Frontend expects response.data.dates
+    return res.json(stats);
 
-    stats.averageMood = moodCount > 0 ? Math.round(moodSum / moodCount) : 0;
-    stats.averageEnergy = energyCount > 0 ? Math.round(energySum / energyCount) : 0;
-
-    res.json({
-      success: true,
-      stats
-    });
   } catch (error) {
-    console.error('Get weekly stats error:', error);
-    res.status(500).json({ 
+    console.error(
+      'Get weekly stats error:',
+      error
+    );
+
+    return res.status(500).json({
       success: false,
-      message: error.message 
+      message: 'Failed to load weekly statistics'
     });
   }
 };
