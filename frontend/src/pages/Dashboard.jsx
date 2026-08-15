@@ -1,778 +1,602 @@
 // frontend/src/pages/Dashboard.jsx
 
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Activity,
-  Clock,
-  Droplets,
-  Ruler,
-  Sparkles,
-  ArrowRight,
-  Check,
-  CalendarDays,
-  TrendingUp,
-  ShieldCheck
-} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import toast from 'react-hot-toast';
 
-import { useAuth } from '../context/AuthContext';
-import api from '../api/axios';
-import ProgressRing from '../components/ProgressRing';
+import {
+  Activity,
+  Droplets,
+  Zap,
+  Ruler,
+  ArrowRight,
+  CheckCircle2,
+  Circle,
+  Clock3,
+  ListChecks,
+  Sparkles,
+  PartyPopper,
+  CalendarDays,
+} from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const [todayTracker, setTodayTracker] = useState(null);
+  const [tracker, setTracker] = useState(null);
   const [weeklyStats, setWeeklyStats] = useState(null);
-  const [healthPlan, setHealthPlan] = useState(null);
-
   const [loading, setLoading] = useState(true);
-  const [generatingPlan, setGeneratingPlan] = useState(false);
+  const [updatingTask, setUpdatingTask] = useState(null);
+
+  //====
+  // USER ID
+  //====
+
+  const userId = user?._id || user?.id;
+
+  //====
+  // LOAD DASHBOARD
+  //====
 
   useEffect(() => {
-    if (user) {
-      fetchDashboardData();
-    }
-  }, [user]);
+    if (!userId) return;
+    fetchDashboardData();
+  }, [userId]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
 
-      const [trackerRes, statsRes, planRes] = await Promise.all([
-        api.get('/api/health/tracker/today'),
-
-        api.get('/api/health/stats/weekly'),
-
-        api.get('/api/health/plan').catch((error) => {
-          if (error.response?.status === 404) {
-            return { data: null };
-          }
-
-          throw error;
-        })
+      const [trackerResponse, weeklyResponse] = await Promise.all([
+        axios.get(`/api/health/tracker/today/${userId}`),
+        axios.get(`/api/health/stats/weekly/${userId}`),
       ]);
 
-      setTodayTracker(trackerRes.data);
-      setWeeklyStats(statsRes.data);
-      setHealthPlan(planRes.data);
-
+      setTracker(trackerResponse.data.tracker);
+      setWeeklyStats(weeklyResponse.data.stats);
     } catch (error) {
       console.error(
         'Failed to fetch dashboard data:',
         error.response?.data || error.message
       );
-
       toast.error(
-        error.response?.data?.message ||
-        'Failed to load dashboard data'
+        error.response?.data?.message || 'Failed to load dashboard data'
       );
-
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggleTask = async (taskId, isCompleted) => {
+  //====
+  // TOGGLE TASK
+  //====
+
+  const handleToggleTask = async (taskId, currentStatus) => {
+    if (!userId || !taskId) return;
+
     try {
-      await api.put(`/api/health/tracker/task/${taskId}`, {
-        isCompleted: !isCompleted
+      setUpdatingTask(taskId);
+
+      const response = await axios.put(
+        `/api/health/tracker/task/${userId}/${taskId}`,
+        { isCompleted: !currentStatus }
+      );
+
+      const updatedTask = response.data.task;
+      const progress = response.data.progress;
+
+      setTracker((previous) => {
+        if (!previous) return previous;
+        return {
+          ...previous,
+          tasks: previous.tasks.map((task) =>
+            task.taskId === taskId
+              ? {
+                  ...task,
+                  isCompleted: updatedTask.isCompleted,
+                  completedAt: updatedTask.completedAt,
+                }
+              : task
+          ),
+          completedTasks: progress.completed,
+          totalTasks: progress.total,
+        };
       });
 
-      await fetchDashboardData();
+      toast.success(!currentStatus ? 'Task completed' : 'Task marked incomplete');
 
-      toast.success(
-        isCompleted
-          ? 'Task marked as pending'
-          : 'Task completed'
-      );
-
+      // Refresh weekly numbers
+      try {
+        const weeklyResponse = await axios.get(
+          `/api/health/stats/weekly/${userId}`
+        );
+        setWeeklyStats(weeklyResponse.data.stats);
+      } catch {
+        // Dashboard already updated.
+      }
     } catch (error) {
       console.error(
-        'Task update error:',
+        'Failed to update task:',
         error.response?.data || error.message
       );
-
       toast.error(
-        error.response?.data?.message ||
-        'Failed to update task'
+        error.response?.data?.message || 'Failed to update task'
       );
-    }
-  };
-
-  const handleGeneratePlan = async () => {
-    if (generatingPlan) return;
-
-    try {
-      setGeneratingPlan(true);
-
-      const loadingToast = toast.loading(
-        'Generating personalized health plan...'
-      );
-
-      await api.post('/api/health/generate-plan');
-
-      toast.dismiss(loadingToast);
-
-      toast.success(
-        'Health plan generated successfully!'
-      );
-
-      await fetchDashboardData();
-
-    } catch (error) {
-      console.error(
-        'Generate health plan error:',
-        error.response?.data || error.message
-      );
-
-      toast.dismiss();
-
-      toast.error(
-        error.response?.data?.message ||
-        'Failed to generate health plan'
-      );
-
     } finally {
-      setGeneratingPlan(false);
+      setUpdatingTask(null);
     }
   };
+
+  //====
+  // LOADING
+  //====
 
   if (loading) {
     return (
-      <div className="acu-page flex min-h-[70vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-
-          <div className="relative h-12 w-12">
-            <div className="absolute inset-0 rounded-full border-2 border-primary-500/20" />
-
-            <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-accent-500" />
-          </div>
-
-          <p className="acu-mono text-[10px] uppercase tracking-[0.14em] text-primary-300">
-            Loading health data
+      <div className="acu-page min-h-[70vh] flex items-center justify-center">
+        <div className="text-center">
+          <Activity
+            size={30}
+            className="mx-auto mb-4 text-accent-500 animate-pulse"
+          />
+          <p className="acu-mono text-[9px] opacity-50">
+            LOADING YOUR HEALTH DATA...
           </p>
-
         </div>
       </div>
     );
   }
 
-  const totalTasks = todayTracker?.totalTasks || 0;
-  const completedTasks = todayTracker?.completedTasks || 0;
+  //====
+  // VALUES
+  //====
 
+  const tasks = tracker?.tasks || [];
+  const totalTasks = tracker?.totalTasks || tasks.length || 0;
+  const completedTasks =
+    tracker?.completedTasks || tasks.filter((task) => task.isCompleted).length;
   const completionRate =
-    totalTasks > 0
-      ? (completedTasks / totalTasks) * 100
-      : 0;
+    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const remainingTasks = Math.max(totalTasks - completedTasks, 0);
+  const allTasksCompleted = totalTasks > 0 && completedTasks === totalTasks;
+  const energy = tracker?.energyLevel || 0;
+  const water = tracker?.waterIntake || 0;
+  const bmi = user?.bmi || user?.BMI || '-';
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
 
-  const averageCompletion =
-    weeklyStats?.completionRates?.length
-      ? Math.round(
-          weeklyStats.completionRates.reduce(
-            (sum, value) => sum + value,
-            0
-          ) / weeklyStats.completionRates.length
-        )
-      : 0;
+  //====
+  // PAGE
+  //====
 
   return (
     <div className="acu-page">
+      {/*
+          HEADER*/}
 
-      <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 lg:px-8">
-
-        {/* =========================
-            HEADER
-        ========================= */}
-
-        <section className="acu-dashboard-header">
-
-          <div className="flex flex-wrap items-center justify-between gap-4">
-
-            <div>
-
-              <div className="mb-3 flex items-center gap-2">
-
-                <span className="acu-badge acu-badge-coral">
-                  <CalendarDays className="h-3 w-3" />
-
-                  TODAY
-                </span>
-
-                <span className="acu-mono text-[9px] uppercase tracking-[0.12em] text-primary-300">
-                  {new Date().toLocaleDateString('en-US', {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric'
-                  })}
-                </span>
-
-              </div>
-
-              <h1 className="acu-display text-3xl text-cream-100 sm:text-4xl lg:text-5xl">
-
-                Welcome back,
-                <span className="ml-2 italic text-accent-500">
-                  {user?.name || 'there'}.
-                </span>
-
-              </h1>
-
-              <p className="mt-3 max-w-xl text-sm leading-6 text-primary-200">
-                Here's your health summary for today.
-                Keep small habits moving forward.
-              </p>
-
+      <section className="acu-dashboard-header">
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <div className="acu-mono text-[9px] text-accent-500 mb-3">
+              CHART · TODAY ·{' '}
+              {new Date()
+                .toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })
+                .toUpperCase()}
             </div>
 
-            {!healthPlan && (
-              <button
-                onClick={handleGeneratePlan}
-                disabled={generatingPlan}
-                className="acu-button"
-              >
-                <Sparkles className="h-4 w-4" />
+            <h1 className="acu-display text-4xl md:text-5xl">
+              Welcome back,{' '}
+              <span className="text-accent-500 italic">
+                {user?.name || 'there'}
+              </span>
+            </h1>
 
-                {generatingPlan
-                  ? 'Generating...'
-                  : 'Generate Health Plan'}
-              </button>
-            )}
-
-          </div>
-
-          {/* Pulse line */}
-
-          <div className="mt-7 flex items-center gap-3">
-
-            <div className="h-px flex-1 bg-cream-100/10" />
-
-            <svg
-              width="180"
-              height="32"
-              viewBox="0 0 180 32"
-              fill="none"
-              className="text-accent-500"
-            >
-              <path
-                d="M0 16H48L57 16L64 8L70 25L77 3L84 22L91 16H125L132 16L139 8L146 24L153 4L160 22L167 16H180"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-
-            <div className="h-px flex-1 bg-cream-100/10" />
-
-          </div>
-
-        </section>
-
-        {/* =========================
-            STATS
-        ========================= */}
-
-        <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-
-          {/* Progress */}
-
-          <div className="acu-stat-card">
-
-            <div className="flex items-start justify-between">
-
-              <div>
-
-                <p className="acu-stat-label">
-                  Today's progress
-                </p>
-
-                <p className="acu-stat-value">
-                  {Math.round(completionRate)}%
-                </p>
-
-              </div>
-
-              <div className="h-12 w-12">
-                <ProgressRing
-                  progress={completionRate}
-                />
-              </div>
-
-            </div>
-
-            <p className="acu-stat-meta">
-              {completedTasks} of {totalTasks} tasks completed
+            <p className="mt-2 text-sm opacity-60">
+              Here's your health summary for today.
             </p>
-
           </div>
 
-          {/* Energy */}
-
-          <div className="acu-stat-card">
-
-            <div className="flex items-start justify-between">
-
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-50 text-accent-500">
-                <Activity className="h-4 w-4" />
-              </span>
-
-              <span className="acu-stat-label">
-                Energy
-              </span>
-
-            </div>
-
-            <div className="mt-4 flex items-baseline gap-1">
-
-              <span className="acu-stat-value">
-                {todayTracker?.energyLevel || '-'}
-              </span>
-
-              <span className="acu-mono text-[10px] text-ink-500">
-                /10
-              </span>
-
-            </div>
-
-            <p className="acu-stat-meta">
-              Daily energy level
-            </p>
-
-          </div>
-
-          {/* Water */}
-
-          <div className="acu-stat-card">
-
-            <div className="flex items-start justify-between">
-
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary-600">
-                <Droplets className="h-4 w-4" />
-              </span>
-
-              <span className="acu-stat-label">
-                Water
-              </span>
-
-            </div>
-
-            <div className="mt-4 flex items-baseline gap-1">
-
-              <span className="acu-stat-value">
-                {todayTracker?.waterIntake || 0}
-              </span>
-
-              <span className="acu-mono text-[10px] text-ink-500">
-                glasses
-              </span>
-
-            </div>
-
-            <p className="acu-stat-meta">
-              Today's intake
-            </p>
-
-          </div>
-
-          {/* BMI */}
-
-          <div className="acu-stat-card">
-
-            <div className="flex items-start justify-between">
-
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ink-100 text-ink-700">
-                <Ruler className="h-4 w-4" />
-              </span>
-
-              <span className="acu-stat-label">
-                BMI
-              </span>
-
-            </div>
-
-            <div className="mt-4">
-
-              <span className="acu-stat-value">
-                {user?.bmi
-                  ? Number(user.bmi).toFixed(1)
-                  : '-'}
-              </span>
-
-            </div>
-
-            <p className="acu-stat-meta">
-              Current body index
-            </p>
-
-          </div>
-
-        </section>
-
-        {/* =========================
-            TASKS
-        ========================= */}
-
-        <section className="mt-6">
-
-          <div className="mb-3 flex items-end justify-between">
-
-            <div>
-
-              <p className="acu-stat-label text-primary-300">
-                Daily routine
-              </p>
-
-              <h2 className="mt-1 text-2xl text-cream-100">
-                Today's Tasks
-              </h2>
-
-            </div>
-
-            <Link
-              to="/daily-tracker"
-              className="hidden items-center gap-1 text-xs font-semibold text-accent-400 transition-colors hover:text-accent-300 sm:flex"
-            >
-              Open tracker
-
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-
-          </div>
-
-          <div className="acu-task-card">
-
-            {todayTracker?.tasks?.length > 0 ? (
-
-              <div>
-
-                {todayTracker.tasks.map((task) => (
-
-                  <div
-                    key={task.taskId}
-                    className="acu-task-row group"
-                  >
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleToggleTask(
-                          task.taskId,
-                          task.isCompleted
-                        )
-                      }
-                      aria-label={
-                        task.isCompleted
-                          ? 'Mark task not done'
-                          : 'Mark task done'
-                      }
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-all ${
-                        task.isCompleted
-                          ? 'border-primary-500 bg-primary-500 text-white'
-                          : 'border-ink-300 bg-transparent hover:border-accent-500'
-                      }`}
-                    >
-                      {task.isCompleted && (
-                        <Check className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-
-                    <div className="min-w-0">
-
-                      <p
-                        className={`truncate text-sm font-medium ${
-                          task.isCompleted
-                            ? 'text-ink-300 line-through'
-                            : 'text-ink-900'
-                        }`}
-                      >
-                        {task.title}
-                      </p>
-
-                      <span className="acu-mono text-[9px] uppercase tracking-[0.08em] text-primary-600">
-                        {task.category}
-                      </span>
-
-                    </div>
-
-                    {task.scheduledTime && (
-
-                      <div className="acu-task-time flex items-center gap-1">
-
-                        <Clock className="h-3 w-3" />
-
-                        {task.scheduledTime}
-
-                      </div>
-
-                    )}
-
-                  </div>
-
-                ))}
-
-              </div>
-
-            ) : (
-
-              <div className="acu-empty">
-
-                <div className="acu-empty-icon">
-                  <Activity className="h-5 w-5" />
-                </div>
-
-                <h3 className="acu-empty-title">
-                  No tasks yet
-                </h3>
-
-                <p className="acu-empty-text">
-                  Generate your personalized health plan
-                  to create today's routine.
-                </p>
-
-                {!healthPlan && (
-                  <button
-                    onClick={handleGeneratePlan}
-                    disabled={generatingPlan}
-                    className="acu-button mt-5"
-                  >
-                    <Sparkles className="h-4 w-4" />
-
-                    {generatingPlan
-                      ? 'Generating...'
-                      : 'Generate plan'}
-                  </button>
-                )}
-
-              </div>
-
-            )}
-
-          </div>
-
-          <Link
-            to="/daily-tracker"
-            className="mt-3 flex items-center justify-center gap-1 text-xs font-semibold text-accent-400 sm:hidden"
+          <button
+            type="button"
+            onClick={() => navigate('/health-plan')}
+            className="acu-button hidden sm:flex"
           >
-            Open daily tracker
+            Health Plan
+            <ArrowRight size={15} />
+          </button>
+        </div>
+      </section>
 
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+      {/*
+          STAT CARDS*/}
 
-        </section>
-
-        {/* =========================
-            WEEKLY OVERVIEW
-        ========================= */}
-
-        {weeklyStats?.dates?.length > 0 && (
-
-          <section className="mt-6">
-
-            <div className="mb-3 flex items-end justify-between">
-
-              <div>
-
-                <p className="acu-stat-label text-primary-300">
-                  Recent activity
-                </p>
-
-                <h2 className="mt-1 text-2xl text-cream-100">
-                  Weekly Overview
-                </h2>
-
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
+        {/* PROGRESS */}
+        <div className="acu-stat-card">
+          <div className="acu-stat-label">Today's Progress</div>
+          <div className="flex items-end justify-between">
+            <div>
+              <div className="acu-stat-value">{completionRate}%</div>
+              <div className="acu-stat-meta">
+                {completedTasks} of {totalTasks} tasks completed
               </div>
-
-              <TrendingUp className="h-5 w-5 text-primary-400" />
-
             </div>
-
-            <div className="acu-card p-5 sm:p-6">
-
-              {/* Chart */}
-
-              <div className="flex h-48 items-end gap-2 sm:gap-4">
-
-                {weeklyStats.dates.map((date, index) => {
-
-                  const rate =
-                    weeklyStats.completionRates?.[index] || 0;
-
-                  const maxRate =
-                    Math.max(
-                      ...(weeklyStats.completionRates || [0])
-                    );
-
-                  const isBest =
-                    rate === maxRate && rate > 0;
-
-                  return (
-
-                    <div
-                      key={index}
-                      className="flex h-full flex-1 flex-col items-center justify-end"
-                    >
-
-                      <div className="flex w-full flex-1 items-end">
-
-                        <div
-                          className={`w-full rounded-t-md transition-all duration-500 ${
-                            isBest
-                              ? 'bg-accent-500'
-                              : 'bg-primary-400'
-                          }`}
-                          style={{
-                            height: `${Math.max(rate, 3)}%`
-                          }}
-                          title={`${Math.round(rate)}% completion`}
-                        />
-
-                      </div>
-
-                      <span className="acu-mono mt-3 text-[9px] uppercase text-ink-500">
-                        {new Date(date).toLocaleDateString(
-                          'en-US',
-                          {
-                            weekday: 'short'
-                          }
-                        )}
-                      </span>
-
-                    </div>
-
-                  );
-
-                })}
-
-              </div>
-
-              {/* Summary */}
-
-              <div className="mt-5 grid grid-cols-3 border-t border-ink-900/10 pt-5">
-
-                <div>
-
-                  <p className="acu-stat-label">
-                    Completion
-                  </p>
-
-                  <p className="mt-1 font-display text-xl text-ink-900">
-                    {averageCompletion}%
-                  </p>
-
-                </div>
-
-                <div className="border-l border-ink-900/10 pl-4">
-
-                  <p className="acu-stat-label">
-                    Energy
-                  </p>
-
-                  <p className="mt-1 font-display text-xl text-ink-900">
-                    {weeklyStats.averageEnergy || '-'}
-                    <span className="acu-mono ml-1 text-[9px] text-ink-500">
-                      /10
-                    </span>
-                  </p>
-
-                </div>
-
-                <div className="border-l border-ink-900/10 pl-4">
-
-                  <p className="acu-stat-label">
-                    Mood
-                  </p>
-
-                  <p className="mt-1 font-display text-xl text-ink-900">
-                    {weeklyStats.averageMood || '-'}
-                    <span className="acu-mono ml-1 text-[9px] text-ink-500">
-                      /5
-                    </span>
-                  </p>
-
-                </div>
-
-              </div>
-
+            <div className="relative w-12 h-12">
+              <svg
+                className="w-12 h-12 -rotate-90"
+                viewBox="0 0 36 36"
+              >
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15"
+                  fill="none"
+                  stroke="#dfd2bd"
+                  strokeWidth="3"
+                />
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15"
+                  fill="none"
+                  stroke="#ef5937"
+                  strokeWidth="3"
+                  strokeDasharray={`${completionRate} 100`}
+                  strokeLinecap="round"
+                />
+              </svg>
             </div>
-
-          </section>
-
-        )}
-
-        {/* =========================
-            HEALTH PLAN CTA
-        ========================= */}
-
-        {healthPlan && (
-
-          <section className="mt-6">
-
-            <div className="acu-card overflow-hidden">
-
-              <div className="grid gap-6 p-6 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-center">
-
-                <div>
-
-                  <div className="flex items-center gap-2">
-
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary-600">
-                      <ShieldCheck className="h-4 w-4" />
-                    </span>
-
-                    <span className="acu-stat-label">
-                      Personalized care
-                    </span>
-
-                  </div>
-
-                  <h2 className="mt-3 text-2xl text-ink-900">
-                    Your health plan is ready.
-                  </h2>
-
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-ink-500">
-                    Review your dietary recommendations,
-                    medication schedule and lifestyle suggestions.
-                  </p>
-
-                </div>
-
-                <Link
-                  to="/health-plan"
-                  className="acu-button"
-                >
-                  View health plan
-
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-
-              </div>
-
-            </div>
-
-          </section>
-
-        )}
-
-        {/* =========================
-            FOOTNOTE
-        ========================= */}
-
-        <div className="mt-8 flex items-start gap-2 border-t border-white/10 pt-5">
-
-          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-400" />
-
-          <p className="text-[10px] leading-5 text-primary-400">
-            AcuCare provides health information for tracking
-            and educational purposes. It does not replace
-            professional medical advice.
-          </p>
-
+          </div>
         </div>
 
-      </div>
+        {/* ENERGY */}
+        <div className="acu-stat-card">
+          <div className="acu-stat-label">Energy</div>
+          <div className="mt-3 flex items-center gap-2">
+            <Zap size={17} className="text-accent-500" />
+            <span className="acu-stat-value">{energy || '-'}</span>
+            <span className="text-xs opacity-50">/10</span>
+          </div>
+          <div className="acu-stat-meta">Daily energy level</div>
+        </div>
 
+        {/* WATER */}
+        <div className="acu-stat-card">
+          <div className="acu-stat-label">Water</div>
+          <div className="mt-3 flex items-center gap-2">
+            <Droplets size={17} className="text-primary-500" />
+            <span className="acu-stat-value">{water}</span>
+            <span className="text-xs opacity-50">glasses</span>
+          </div>
+          <div className="acu-stat-meta">Today's intake</div>
+        </div>
+
+        {/* BMI */}
+        <div className="acu-stat-card">
+          <div className="acu-stat-label">BMI</div>
+          <div className="mt-3 flex items-center gap-2">
+            <Ruler size={17} className="text-primary-500" />
+            <span className="acu-stat-value">{bmi}</span>
+          </div>
+          <div className="acu-stat-meta">Current body index</div>
+        </div>
+      </section>
+
+      {/*
+          TODAY'S ROUTINE*/}
+
+      <section className="acu-task-card mt-6 overflow-hidden">
+        {/* HEADER */}
+        <div className="p-5 border-b border-black/10">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <ListChecks size={14} className="text-accent-500" />
+                <span className="acu-mono text-[9px] text-primary-600">
+                  DAILY ROUTINE
+                </span>
+              </div>
+              <h2 className="acu-display text-2xl mt-1">Today's Tasks</h2>
+              <p className="text-xs opacity-50 mt-1">
+                Complete small actions to keep your health routine moving.
+              </p>
+            </div>
+
+            {/* COUNT */}
+            <div className="text-right shrink-0">
+              <div className="acu-mono text-[8px] opacity-40">
+                {today.toUpperCase()}
+              </div>
+              <div className="text-xl font-semibold mt-1">
+                {completedTasks}
+                <span className="opacity-30">/{totalTasks}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* PROGRESS */}
+          <div className="mt-5">
+            <div className="flex justify-between mb-2">
+              <span className="acu-mono text-[8px] opacity-40">
+                DAILY PROGRESS
+              </span>
+              <span className="acu-mono text-[8px] text-accent-600">
+                {completionRate}%
+              </span>
+            </div>
+            <div className="h-2 bg-cream-300 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-accent-500 rounded-full transition-all duration-500"
+                style={{ width: `${completionRate}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* =================================================
+            EMPTY STATE
+        ================================================= */}
+
+        {tasks.length === 0 && (
+          <div className="acu-empty">
+            <div className="acu-empty-icon">
+              <Activity size={20} />
+            </div>
+            <h3 className="acu-empty-title">Your routine starts here</h3>
+            <p className="acu-empty-text">
+              Create today's personalized routine based on your health profile.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/health-plan')}
+              className="acu-button mt-5"
+            >
+              Create Today's Routine
+              <ArrowRight size={15} />
+            </button>
+          </div>
+        )}
+
+        {/* =================================================
+            TASKS
+        ================================================= */}
+
+        {tasks.length > 0 && (
+          <div>
+            {tasks.map((task, index) => {
+              const isUpdating = updatingTask === task.taskId;
+
+              return (
+                <button
+                  key={task.taskId}
+                  type="button"
+                  disabled={isUpdating}
+                  onClick={() =>
+                    handleToggleTask(task.taskId, task.isCompleted)
+                  }
+                  className={`
+                    w-full
+                    text-left
+                    flex
+                    items-center
+                    gap-4
+                    px-5
+                    py-4
+                    border-b
+                    border-black/10
+                    last:border-b-0
+                    transition-all
+                    duration-200
+                    ${task.isCompleted ? 'bg-primary-50/60' : 'hover:bg-black/[0.025]'}
+                    ${isUpdating ? 'opacity-50 cursor-wait' : ''}
+                  `}
+                >
+                  {/* NUMBER */}
+                  <div className="w-7 shrink-0">
+                    <span
+                      className={`
+                        acu-mono text-[9px]
+                        ${task.isCompleted ? 'opacity-30' : 'text-accent-600'}
+                      `}
+                    >
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                  </div>
+
+                  {/* CHECK */}
+                  <div className="shrink-0">
+                    {task.isCompleted ? (
+                      <CheckCircle2 size={22} className="text-primary-500" />
+                    ) : (
+                      <Circle size={22} className="text-accent-500" />
+                    )}
+                  </div>
+
+                  {/* TASK */}
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`font-medium ${task.isCompleted ? 'line-through opacity-35' : ''}`}
+                    >
+                      {task.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {task.category && (
+                        <span className="acu-badge acu-badge-green">
+                          {task.category}
+                        </span>
+                      )}
+                      {task.priority && (
+                        <span
+                          className={`
+                            acu-badge
+                            ${task.priority === 'High' ? 'acu-badge-coral' : 'acu-badge-green'}
+                          `}
+                        >
+                          {task.priority}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* TIME */}
+                  {task.scheduledTime && (
+                    <div className="shrink-0 text-right">
+                      <div className="flex items-center gap-1 acu-task-time">
+                        <Clock3 size={11} />
+                        {task.scheduledTime}
+                      </div>
+                      {task.isCompleted && (
+                        <div className="text-[8px] text-primary-600 mt-1 acu-mono">
+                          DONE
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* =================================================
+            COMPLETE STATE
+        ================================================= */}
+
+        {allTasksCompleted && (
+          <div className="p-5 bg-primary-50 border-t border-primary-100">
+            <div className="flex items-center justify-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary-900 flex items-center justify-center">
+                <PartyPopper size={19} className="text-accent-500" />
+              </div>
+              <div>
+                <h3 className="acu-display text-xl text-primary-900">
+                  Day complete.
+                </h3>
+                <p className="text-xs text-primary-700/70 mt-1">
+                  You completed every task scheduled for today.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =================================================
+            FOOTER
+        ================================================= */}
+
+        {tasks.length > 0 && (
+          <div className="px-5 py-4 border-t border-black/10 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Sparkles size={13} className="text-accent-500" />
+              <span className="acu-mono text-[8px] opacity-50">
+                {allTasksCompleted
+                  ? 'ALL TASKS COMPLETE'
+                  : `${remainingTasks} TASK${remainingTasks === 1 ? '' : 'S'} REMAINING`}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/daily-tracker')}
+              className="text-xs font-semibold text-accent-600 hover:text-accent-700 flex items-center gap-1"
+            >
+              Open Daily Tracker
+              <ArrowRight size={13} />
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/*
+          DAILY CHECK-IN*/}
+
+      {tasks.length > 0 && !allTasksCompleted && (
+        <section className="mt-4">
+          <button
+            type="button"
+            onClick={() => navigate('/daily-tracker')}
+            className="
+              w-full
+              acu-card-dark
+              p-4
+              flex
+              items-center
+              justify-between
+              gap-4
+              text-left
+              hover:bg-white/[0.06]
+              transition-colors
+            "
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-accent-500/10 flex items-center justify-center">
+                <Activity size={17} className="text-accent-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">
+                  Keep your daily check-in updated
+                </p>
+                <p className="text-[11px] opacity-50 mt-0.5">
+                  Track mood, energy and water intake.
+                </p>
+              </div>
+            </div>
+            <ArrowRight size={16} className="opacity-50 shrink-0" />
+          </button>
+        </section>
+      )}
+
+      {/*WEEKLY SUMMARY*/}
+
+      {weeklyStats && (
+        <section className="acu-card-dark mt-6 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <CalendarDays size={17} className="text-accent-500" />
+            <h2 className="acu-display text-xl">Seven Day Summary</h2>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <div className="acu-mono text-[9px] opacity-50">TASKS</div>
+              <div className="text-2xl font-semibold mt-1">
+                {weeklyStats.completedTasks || 0}
+              </div>
+              <div className="text-[10px] opacity-40 mt-1">completed</div>
+            </div>
+
+            <div>
+              <div className="acu-mono text-[9px] opacity-50">TOTAL</div>
+              <div className="text-2xl font-semibold mt-1">
+                {weeklyStats.totalTasks || 0}
+              </div>
+              <div className="text-[10px] opacity-40 mt-1">scheduled</div>
+            </div>
+
+            <div>
+              <div className="acu-mono text-[9px] opacity-50">ENERGY</div>
+              <div className="text-2xl font-semibold mt-1">
+                {weeklyStats.averageEnergy || '-'}
+              </div>
+              <div className="text-[10px] opacity-40 mt-1">average /10</div>
+            </div>
+
+            <div>
+              <div className="acu-mono text-[9px] opacity-50">WATER</div>
+              <div className="text-2xl font-semibold mt-1">
+                {weeklyStats.totalWaterIntake || 0}
+              </div>
+              <div className="text-[10px] opacity-40 mt-1">glasses</div>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 };

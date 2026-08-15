@@ -1,33 +1,27 @@
-// Environment Variables
-// MUST load before importing routes
+
+// ENVIRONMENT
 
 const path = require('path');
 const dotenv = require('dotenv');
 
 dotenv.config({
-    path: path.join(__dirname, '.env')
+  path: path.join(__dirname, '.env'),
 });
 
-// Validate Required Environment Variables
+// VALIDATE ENVIRONMENT
 
-const requiredEnv = [
-    'MONGODB_URI',
-    'GEMINI_API_KEY'
-];
+const requiredEnv = ['MONGODB_URI', 'GEMINI_API_KEY', 'JWT_SECRET'];
 
-const missingEnv = requiredEnv.filter(
-    (key) => !process.env[key]
-);
+const missingEnv = requiredEnv.filter((key) => !process.env[key]);
 
 if (missingEnv.length > 0) {
-    console.error(
-        `❌ Missing required environment variables: ${missingEnv.join(', ')}`
-    );
-
-    process.exit(1);
+  console.error(
+    `❌ Missing required environment variables: ${missingEnv.join(', ')}`
+  );
+  process.exit(1);
 }
 
-// Imports
+// IMPORTS
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -36,176 +30,209 @@ const cors = require('cors');
 const healthRoutes = require('./routes/healthRoutes');
 const userRoutes = require('./routes/userRoutes');
 
-// App
+// APP
 
 const app = express();
 
-// Configuration
-
 const PORT = process.env.PORT || 5000;
 
-const FRONTEND_URL =
-    process.env.FRONTEND_URL || 'http://localhost:5173';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-// Middleware
+// SECURITY
 
 app.disable('x-powered-by');
 
-app.use(cors({
+// CORS
+
+app.use(
+  cors({
     origin: FRONTEND_URL,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
-app.use(express.json({
-    limit: '1mb'
-}));
+// BODY PARSER
 
-app.use(express.urlencoded({
+app.use(
+  express.json({
+    limit: '1mb',
+  })
+);
+
+app.use(
+  express.urlencoded({
     extended: true,
-    limit: '1mb'
-}));
+    limit: '1mb',
+  })
+);
 
-// MongoDB Connection
+// REQUEST LOGGER
+// Temporary debugging — helps identify 404 route problems
 
-let isConnecting = false;
-
-const connectWithRetry = async () => {
-    if (isConnecting) {
-        return;
-    }
-
-    isConnecting = true;
-
-    try {
-        console.log('🔄 Connecting to MongoDB Atlas...');
-
-        await mongoose.connect(process.env.MONGODB_URI, {
-            serverSelectionTimeoutMS: 30000,
-            socketTimeoutMS: 45000,
-            connectTimeoutMS: 30000,
-            family: 4,
-            retryWrites: true,
-            retryReads: true
-        });
-
-        console.log('✅ MongoDB connected successfully!');
-
-    } catch (err) {
-        console.error(
-            '❌ MongoDB connection failed.'
-        );
-
-        // Do not print MongoDB URI, username,
-        // password, cluster address, or full error.
-
-        console.error(
-            'Reason:',
-            err.name || 'ConnectionError'
-        );
-
-        setTimeout(() => {
-            isConnecting = false;
-            connectWithRetry();
-        }, 5000);
-
-        return;
-    }
-
-    isConnecting = false;
-};
-
-// Start MongoDB connection
-connectWithRetry();
-
-// MongoDB Events
-
-mongoose.connection.on('connected', () => {
-    console.log('🔄 MongoDB connection established');
+app.use((req, res, next) => {
+  console.log(`➡️ ${req.method} ${req.originalUrl}`);
+  next();
 });
 
-mongoose.connection.on('error', () => {
-    console.error('⚠️ MongoDB connection error');
+// MONGODB
+
+let isConnecting = false;
+let reconnectTimer = null;
+
+const connectMongoDB = async () => {
+  if (isConnecting) {
+    return;
+  }
+
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
+
+  isConnecting = true;
+
+  try {
+    console.log('🔄 Connecting to MongoDB Atlas...');
+
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000,
+      family: 4,
+      retryWrites: true,
+      retryReads: true,
+    });
+
+    console.log('✅ MongoDB connected successfully!');
+  } catch (error) {
+    console.error(
+      '❌ MongoDB connection failed:',
+      error.name || 'ConnectionError'
+    );
+    scheduleMongoReconnect();
+  } finally {
+    isConnecting = false;
+  }
+};
+
+const scheduleMongoReconnect = () => {
+  if (reconnectTimer) {
+    return;
+  }
+
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectMongoDB();
+  }, 5000);
+};
+
+// Start MongoDB
+connectMongoDB();
+
+// MONGODB EVENTS
+
+mongoose.connection.on('connected', () => {
+  console.log('🔄 MongoDB connection established');
 });
 
 mongoose.connection.on('disconnected', () => {
-    console.warn('🔌 MongoDB connection disconnected');
+  console.warn('🔌 MongoDB connection disconnected');
+  scheduleMongoReconnect();
 });
 
-// Routes
+mongoose.connection.on('error', () => {
+  console.error('⚠️ MongoDB connection error');
+});
+
+// API ROUTES
 
 app.use('/api/users', userRoutes);
 app.use('/api/health', healthRoutes);
 
-// Health Check
+console.log('✅ User routes mounted at /api/users');
+console.log('✅ Health routes mounted at /api/health');
+
+// HEALTH API TEST
+
+app.get('/api/health/test', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Health API working',
+  });
+});
+
+// SERVER HEALTH CHECK
 
 app.get('/health', (req, res) => {
-    const dbStatus = mongoose.connection.readyState;
+  const statusMap = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting',
+  };
 
-    const statusMap = {
-        0: 'disconnected',
-        1: 'connected',
-        2: 'connecting',
-        3: 'disconnecting'
-    };
+  const databaseStatus =
+    statusMap[mongoose.connection.readyState] || 'unknown';
 
-    const databaseStatus =
-        statusMap[dbStatus] || 'unknown';
-
-    res.status(200).json({
-        status: 'OK',
-        message: 'Server is running',
-        database: databaseStatus,
-        timestamp: new Date().toISOString()
-    });
+  res.status(200).json({
+    status: 'OK',
+    message: 'Server is running',
+    database: databaseStatus,
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// 404 Handler
+// 404 HANDLER
 
 app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        message: 'Route not found'
-    });
+  console.warn(`❌ 404 ${req.method} ${req.originalUrl}`);
+  res.status(404).json({
+    success: false,
+    message: 'Route not found',
+  });
 });
 
-// Error Handler
+// ERROR HANDLER
 
 app.use((err, req, res, next) => {
-    console.error('❌ Server error:', err.name);
-
-    res.status(err.status || 500).json({
-        success: false,
-        message: 'Internal server error'
-    });
+  console.error('❌ Server error:', err.name || 'ServerError');
+  res.status(err.status || 500).json({
+    success: false,
+    message: 'Internal server error',
+  });
 });
 
-// Graceful Shutdown
+// GRACEFUL SHUTDOWN
 
 const shutdown = async (signal) => {
-    console.log(`\n${signal} received. Shutting down...`);
+  console.log(`\n${signal} received. Shutting down...`);
 
-    try {
-        await mongoose.connection.close();
-
-        console.log('✅ MongoDB connection closed');
-        process.exit(0);
-
-    } catch (error) {
-        console.error('❌ Shutdown error');
-        process.exit(1);
+  try {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
     }
+
+    await mongoose.connection.close();
+    console.log('✅ MongoDB connection closed');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Shutdown error');
+    process.exit(1);
+  }
 };
 
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-// Start Server
+// START SERVER
 
 app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(
-        `📡 Health check: http://localhost:${PORT}/health`
-    );
+  console.log('');
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📡 Health check: http://localhost:${PORT}/health`);
+  console.log(`🧪 API test: http://localhost:${PORT}/api/health/test`);
+  console.log(`🌐 Frontend allowed: ${FRONTEND_URL}`);
+  console.log('');
 });
