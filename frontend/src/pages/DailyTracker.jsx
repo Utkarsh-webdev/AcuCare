@@ -37,6 +37,12 @@ const DailyTracker = () => {
   const [energyLevel, setEnergyLevel] = useState(5);
   const [waterIntake, setWaterIntake] = useState(0);
 
+  // Task add/delete states
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskTime, setNewTaskTime] = useState('');
+  const [addingTask, setAddingTask] = useState(false);
+
   const userId = user?._id || user?.id;
 
   // ============================================================
@@ -133,6 +139,71 @@ const DailyTracker = () => {
         error.response?.data?.message ||
         error.message ||
         'Failed to update task'
+      );
+    }
+  };
+
+  // ============================================================
+  // ADD TASK
+  // ============================================================
+
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim()) {
+      toast.error('Enter a task title');
+      return;
+    }
+
+    try {
+      setAddingTask(true);
+
+      const response = await api.post(
+        `/api/health/tracker/task/${userId}`,
+        {
+          title: newTaskTitle.trim(),
+          scheduledTime: newTaskTime,
+        }
+      );
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Failed to add task');
+      }
+
+      toast.success('Task added');
+      setNewTaskTitle('');
+      setNewTaskTime('');
+      setShowAddTask(false);
+
+      await fetchTracker();
+
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || error.message || 'Failed to add task'
+      );
+    } finally {
+      setAddingTask(false);
+    }
+  };
+
+  // ============================================================
+  // DELETE TASK
+  // ============================================================
+
+  const handleDeleteTask = async (taskId) => {
+    try {
+      const response = await api.delete(
+        `/api/health/tracker/task/${userId}/${taskId}`
+      );
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Failed to delete task');
+      }
+
+      toast.success('Task removed');
+      await fetchTracker();
+
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || error.message || 'Failed to delete task'
       );
     }
   };
@@ -458,15 +529,55 @@ const DailyTracker = () => {
           <div className="acu-mono text-[9px] text-primary-600">
             ROUTINE
           </div>
+
           <div className="flex items-center justify-between">
             <h2 className="acu-display text-2xl mt-1">
               Today's Tasks
             </h2>
-            <span className="acu-mono text-[9px] opacity-50">
-              {completedTasks}/{totalTasks}
-            </span>
+
+            <div className="flex items-center gap-3">
+              <span className="acu-mono text-[9px] opacity-50">
+                {completedTasks}/{totalTasks}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setShowAddTask((v) => !v)}
+                className="acu-mono text-[9px] text-accent-500 border border-accent-500 rounded px-2 py-1 hover:bg-accent-500 hover:text-white transition-colors"
+              >
+                {showAddTask ? 'Cancel' : '+ Add task'}
+              </button>
+            </div>
           </div>
         </div>
+
+        {showAddTask && (
+          <div className="p-4 border-b border-black/10 flex flex-col gap-2">
+            <input
+              type="text"
+              placeholder="Task title (e.g. Morning walk)"
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              className="acu-input"
+            />
+
+            <input
+              type="time"
+              value={newTaskTime}
+              onChange={(e) => setNewTaskTime(e.target.value)}
+              className="acu-input"
+            />
+
+            <button
+              type="button"
+              onClick={handleAddTask}
+              disabled={addingTask}
+              className="acu-button w-full sm:w-auto"
+            >
+              {addingTask ? 'Adding...' : 'Add task'}
+            </button>
+          </div>
+        )}
 
         {tasks.length > 0 ? (
           <div>
@@ -489,14 +600,12 @@ const DailyTracker = () => {
                   )}
                 </button>
 
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className={task.isCompleted ? 'line-through opacity-40' : 'font-medium'}>
                     {task.title}
                   </p>
                   {task.category && (
-                    <span className="text-xs opacity-50">
-                      {task.category}
-                    </span>
+                    <span className="text-xs opacity-50">{task.category}</span>
                   )}
                 </div>
 
@@ -506,6 +615,14 @@ const DailyTracker = () => {
                     {task.scheduledTime}
                   </div>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => handleDeleteTask(task.taskId)}
+                  className="text-xs opacity-40 hover:opacity-100 hover:text-red-500 shrink-0 ml-2"
+                >
+                  ✕
+                </button>
               </div>
             ))}
           </div>
@@ -514,19 +631,28 @@ const DailyTracker = () => {
             <div className="acu-empty-icon">
               <Activity size={20} />
             </div>
-            <h3 className="acu-empty-title">
-              No tasks today
-            </h3>
+            <h3 className="acu-empty-title">No tasks today</h3>
             <p className="acu-empty-text">
-              Generate your health plan to create today's routine.
+              Add a task manually, or generate a full health plan.
             </p>
-            <button
-              type="button"
-              onClick={() => navigate('/health-plan')}
-              className="acu-button mt-5"
-            >
-              Generate Health Plan
-            </button>
+
+            <div className="flex gap-2 justify-center mt-5">
+              <button
+                type="button"
+                onClick={() => setShowAddTask(true)}
+                className="acu-button-outline"
+              >
+                + Add task
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/health-plan')}
+                className="acu-button"
+              >
+                Generate Health Plan
+              </button>
+            </div>
           </div>
         )}
       </section>

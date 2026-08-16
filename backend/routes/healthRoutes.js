@@ -31,6 +31,18 @@ router.put(
   healthController.updateTaskStatus
 );
 
+// Add new task
+router.post(
+  '/tracker/task/:userId',
+  healthController.addTask
+);
+
+// Delete task
+router.delete(
+  '/tracker/task/:userId/:taskId',
+  healthController.deleteTask
+);
+
 router.put(
   '/tracker/daily/:userId',
   healthController.updateMoodAndEnergy

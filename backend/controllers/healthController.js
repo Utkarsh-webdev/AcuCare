@@ -325,6 +325,172 @@ exports.updateTaskStatus = async (req, res) => {
 };
 
 // ======================================================
+// Add Manual Task to Today's Tracker
+// POST /api/health/tracker/task/:userId
+// ======================================================
+
+exports.addTask = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { title, category, scheduledTime, priority } = req.body;
+
+    if (!userId || !validateUserId(userId)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid authentication'
+      });
+    }
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Task title is required'
+      });
+    }
+
+    const today = getToday();
+
+    let tracker = await DailyTracker.findOne({
+      userId,
+      date: today
+    });
+
+    // Create tracker if it doesn't exist
+    if (!tracker) {
+      tracker = new DailyTracker({
+        userId,
+        date: today,
+        tasks: [],
+        totalTasks: 0,
+        completedTasks: 0,
+        mood: null,
+        energyLevel: 5,
+        waterIntake: 0,
+        symptoms: []
+      });
+    }
+
+    // Create new task
+    const newTask = {
+      taskId: new mongoose.Types.ObjectId(),
+      title: title.trim(),
+      category: category?.trim() || 'Custom',
+      scheduledTime: scheduledTime || '',
+      priority: priority || 'Medium',
+      isCompleted: false,
+      completedAt: null,
+      notes: ''
+    };
+
+    tracker.tasks.push(newTask);
+    tracker.totalTasks = tracker.tasks.length;
+
+    await tracker.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Task added successfully',
+      task: newTask,
+      progress: {
+        completed: tracker.completedTasks,
+        total: tracker.totalTasks,
+        percentage: tracker.totalTasks > 0
+          ? Math.round((tracker.completedTasks / tracker.totalTasks) * 100)
+          : 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Add task error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to add task'
+    });
+  }
+};
+
+// ======================================================
+// Delete Task
+// DELETE /api/health/tracker/task/:userId/:taskId
+// ======================================================
+
+exports.deleteTask = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { taskId } = req.params;
+
+    if (!userId || !validateUserId(userId)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid authentication'
+      });
+    }
+
+    if (!taskId || !mongoose.Types.ObjectId.isValid(taskId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid task ID'
+      });
+    }
+
+    const today = getToday();
+
+    const tracker = await DailyTracker.findOne({
+      userId,
+      date: today
+    });
+
+    if (!tracker) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tracker not found for today'
+      });
+    }
+
+    const taskIndex = tracker.tasks.findIndex(
+      (task) => task.taskId.toString() === taskId
+    );
+
+    if (taskIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found'
+      });
+    }
+
+    // If task was completed, decrement completedTasks
+    if (tracker.tasks[taskIndex].isCompleted) {
+      tracker.completedTasks = Math.max(0, tracker.completedTasks - 1);
+    }
+
+    // Remove task
+    tracker.tasks.splice(taskIndex, 1);
+    tracker.totalTasks = tracker.tasks.length;
+
+    await tracker.save();
+
+    return res.json({
+      success: true,
+      message: 'Task deleted successfully',
+      progress: {
+        completed: tracker.completedTasks,
+        total: tracker.totalTasks,
+        percentage: tracker.totalTasks > 0
+          ? Math.round((tracker.completedTasks / tracker.totalTasks) * 100)
+          : 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Delete task error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete task'
+    });
+  }
+};
+
+// ======================================================
 // Update Daily Log
 // PUT /api/health/tracker/daily
 // ======================================================
