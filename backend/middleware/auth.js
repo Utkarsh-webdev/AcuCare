@@ -1,13 +1,16 @@
+// backend/middleware/auth.js
+
 const jwt = require('jsonwebtoken');
 
 module.exports = (req, res, next) => {
   try {
+
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: 'Authentication required'
+        message: 'Authorization header missing'
       });
     }
 
@@ -18,12 +21,12 @@ module.exports = (req, res, next) => {
       });
     }
 
-    const token = authHeader.substring(7).trim();
+    const token = authHeader.substring(7);
 
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Authentication token missing'
+        message: 'No token provided'
       });
     }
 
@@ -35,16 +38,25 @@ module.exports = (req, res, next) => {
     if (!decoded.userId) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid authentication token'
+        message: 'Token does not contain userId'
       });
     }
 
     req.userId = decoded.userId;
 
+    console.log(
+      '✅ Authenticated user:',
+      req.userId
+    );
+
     next();
 
   } catch (error) {
-    console.error('Authentication failed:', error.message);
+
+    console.error(
+      '❌ Auth error:',
+      error.message
+    );
 
     return res.status(401).json({
       success: false,

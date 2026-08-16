@@ -1,69 +1,131 @@
 // backend/models/DailyTracker.js
+
 const mongoose = require('mongoose');
 
-const dailyTrackerSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
-  },
-  date: { 
-    type: Date, 
-    required: true,
-    default: () => {
-      const date = new Date();
-      date.setHours(0, 0, 0, 0);
-      return date;
+const taskSchema = new mongoose.Schema(
+  {
+    taskId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true
+    },
+
+    title: {
+      type: String,
+      required: true
+    },
+
+    description: {
+      type: String,
+      default: ''
+    },
+
+    category: {
+      type: String,
+      default: 'General'
+    },
+
+    scheduledTime: {
+      type: String,
+      default: ''
+    },
+
+    isCompleted: {
+      type: Boolean,
+      default: false
+    },
+
+    completedAt: {
+      type: Date,
+      default: null
+    },
+
+    notes: {
+      type: String,
+      default: ''
     }
   },
-  tasks: [{
-    taskId: { type: mongoose.Schema.Types.ObjectId },
-    title: { type: String, required: true },
-    category: { 
-      type: String, 
-      enum: ['Medication', 'Diet', 'Exercise', 'Habit'],
-      required: true 
-    },
-    isCompleted: { 
-      type: Boolean, 
-      default: false 
-    },
-    scheduledTime: String,
-    completedAt: Date,
-    notes: String
-  }],
-  mood: {
-    type: String,
-    enum: ['Great', 'Good', 'Ok', 'Bad', 'Terrible']
-  },
-  symptoms: [String],
-  energyLevel: {
-    type: Number,
-    min: 1,
-    max: 10
-  },
-  waterIntake: {
-    type: Number,
-    default: 0
-  },
-  completedTasks: { 
-    type: Number, 
-    default: 0 
-  },
-  totalTasks: { 
-    type: Number, 
-    default: 0 
-  },
-  createdAt: { 
-    type: Date, 
-    default: Date.now 
-  },
-  updatedAt: { 
-    type: Date, 
-    default: Date.now 
+  {
+    _id: false
   }
-});
+);
 
-dailyTrackerSchema.index({ userId: 1, date: 1 }, { unique: true });
+const dailyTrackerSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
 
-module.exports = mongoose.model('DailyTracker', dailyTrackerSchema);
+    date: {
+      type: Date,
+      required: true
+    },
+
+    tasks: {
+      type: [taskSchema],
+      default: []
+    },
+
+    totalTasks: {
+      type: Number,
+      default: 0
+    },
+
+    completedTasks: {
+      type: Number,
+      default: 0
+    },
+
+    mood: {
+  type: String,
+  enum: [
+    'Great',
+    'Good',
+    'Ok',
+    'Bad',
+    'Terrible',
+    null
+  ],
+  default: null,
+  set: (v) => (v === '' ? null : v) // convert empty string to null
+    },
+
+    energyLevel: {
+      type: Number,
+      min: 0,
+      max: 10,
+      default: 0
+    },
+
+    waterIntake: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+
+    symptoms: {
+      type: [String],
+      default: []
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+// One tracker per user per day.
+dailyTrackerSchema.index(
+  {
+    userId: 1,
+    date: 1
+  },
+  {
+    unique: true
+  }
+);
+
+module.exports = mongoose.model(
+  'DailyTracker',
+  dailyTrackerSchema
+);

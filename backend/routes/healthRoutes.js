@@ -1,14 +1,15 @@
+// backend/routes/healthRoutes.js
+
 const express = require('express');
 const router = express.Router();
 
 const healthController = require('../controllers/healthController');
 const auth = require('../middleware/auth');
 
-// Protect all health routes
+// Every health route requires JWT.
 router.use(auth);
 
-// HEALTH PLAN
-
+// Health plan
 router.post(
   '/generate-plan/:userId',
   healthController.generateHealthPlan
@@ -19,8 +20,7 @@ router.get(
   healthController.getHealthPlan
 );
 
-// DAILY TRACKER
-
+// Daily tracker
 router.get(
   '/tracker/today/:userId',
   healthController.getTodayTracker
@@ -36,8 +36,7 @@ router.put(
   healthController.updateMoodAndEnergy
 );
 
-// ANALYTICS
-
+// Weekly statistics
 router.get(
   '/stats/weekly/:userId',
   healthController.getWeeklyStats
